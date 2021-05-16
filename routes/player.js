@@ -12,9 +12,10 @@ router.put('/team', async (req, res) => {
 
     const teamId = req.query.team_id
     const playerId = req.query.player_id
+    const today = util.dateToString(new Date())
 
     try {
-        await db.query("UPDATE profiles SET team_id = $1 WHERE id = $2", [teamId, playerId])
+        await db.query("UPDATE profiles SET team_id = $1 team_bind_date=$2 WHERE id = $3", [teamId, today, playerId])
         return res.sendStatus(200)
     }
     catch (err) {
@@ -49,17 +50,18 @@ router.get('/statistics/:player_id', async (req, res) => {
     const playerId = req.params.player_id
 
     try {
-        let query = await db.query("SELECT team_id from profiles WHERE id = $1", [playerId])
+        let query = await db.query("SELECT name, team_id, team_bind_date from profiles WHERE id = $1", [playerId])
         let rows = query.rows
 
         if (rows.length == 0) {
             return res.sendStatus(code.NOT_FOUND)
         }
-        const team = rows[0]
-        const teamId = team.team_id
-        const now = util.formatDate(new Date())
+        const player = rows[0]
+        const teamId = player.team_id
+        const name = player.name
+        const bindDate = player.team_bind_date
 
-        query = await db.query("SELECT * FROM events WHERE team_id = $1", [teamId])
+        query = await db.query("SELECT * FROM events WHERE team_id = $1 AND date >= $2", [teamId, bindDate])
         const allEvents = query.rows
 
         query = await db.query("SELECT * FROM attendance WHERE attendance.player_id = $1", [playerId])
@@ -71,8 +73,12 @@ router.get('/statistics/:player_id', async (req, res) => {
         let attended = attendances.filter((e) => e.state == 'ATTENDED').length
         let late = attendances.filter((e) => e.state == 'LATE').length
 
-        let events = allEvents.filter(e => e.type == 'EVENT').length
-        let workouts = allEvents.filter(e => e.type == 'WORKOUT').length
+        let filteredEvents = allEvents
+            .filter(e => e.type == 'EVENT' || e.type == 'WORKOUT')
+            .filter(e => attendances.find(a => a.event_id == e.id) != undefined)
+
+        let events = filteredEvents.filter(e => e.type == 'EVENT').length
+        let workouts = filteredEvents.filter(e => e.type == 'WORKOUT').length
 
         let all = attended + excused + late
         let score = 10 / all
@@ -93,6 +99,9 @@ router.get('/statistics/:player_id', async (req, res) => {
             'events': events,
             'workouts': workouts
         }
+
+        console.log(player.name)
+        console.log(JSON.stringify(statistics,null,2))
 
         return res.json(statistics)
     }

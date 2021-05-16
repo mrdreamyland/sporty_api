@@ -46,15 +46,16 @@ router.put('/signup', async (req, res) => {
       console.log(`username '${username}' already defined!`);
       return res.sendStatus(code.EXISTS);
     }
-  
+
     // register user
     let token = util.generateToken(singup.username, singup.password);
-  
-    let query = 'INSERT INTO profiles(team_id, name, birthDay, username, password, token, role, gender, phoneNumber, emailAddress, photoUrl) ' +
-    "VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);"
-  
-    let params = [-1, singup.name, '2001-01-01', singup.username, singup.password, token, 'NONE', 'NONE', '', '', '']
-  
+
+    let query = 'INSERT INTO profiles(team_id, name, birthDay, username, password, token, role, gender, phoneNumber, emailAddress, photoUrl, team_bind_date) ' +
+        "VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);"
+
+    let today = util.dateToString(new Date())
+    let params = [-1, singup.name, '2001-01-01', singup.username, singup.password, token, 'NONE', 'NONE', '', '', '', today]
+
     await db.query(query, params)
 
     return res.json({ 'token': token, 'role': 'NONE' });
